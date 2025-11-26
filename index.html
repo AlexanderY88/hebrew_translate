@@ -424,7 +424,7 @@ function startVoiceRecording() {
     }
     
     if (finalTranscript) {
-      // Clean and format the transcript
+      // Clean and format the transcript before inserting
       let formattedText = formatSpeechText(finalTranscript);
       
       const inputField = document.getElementById("inputText");

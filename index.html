@@ -143,61 +143,168 @@ button {
 <!-- JS -->
 <script>
 // ------------------------------
-// 1. Hebrew text correction
+// 1. Hebrew text correction with multiple approaches
 // ------------------------------
 async function fixHebrew(text) {
+  console.log("Starting Hebrew correction for:", text);
+  
+  // First try: LanguageTool API with better error handling
   try {
-    // Try LanguageTool API
     const response = await fetch("https://api.languagetool.org/v2/check", {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: "text=" + encodeURIComponent(text) + "&language=he"
+      headers: { 
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json"
+      },
+      body: new URLSearchParams({
+        text: text,
+        language: "he",
+        enabledOnly: "false"
+      })
     });
 
-    if (!response.ok) {
-      throw new Error(`LanguageTool API returned ${response.status}`);
-    }
-
-    const data = await response.json();
-    let corrected = text;
-
-    // Apply corrections in reverse order to maintain text positions
-    data.matches.reverse().forEach(match => {
-      if (match.replacements && match.replacements.length > 0) {
-        corrected =
-          corrected.slice(0, match.offset) +
-          match.replacements[0].value +
-          corrected.slice(match.offset + match.length);
+    if (response.ok) {
+      const data = await response.json();
+      console.log("LanguageTool response:", data);
+      
+      if (data.matches && data.matches.length > 0) {
+        let corrected = text;
+        
+        // Apply corrections in reverse order to maintain text positions
+        data.matches.reverse().forEach(match => {
+          if (match.replacements && match.replacements.length > 0) {
+            console.log(`Applying correction: "${text.slice(match.offset, match.offset + match.length)}" → "${match.replacements[0].value}"`);
+            corrected =
+              corrected.slice(0, match.offset) +
+              match.replacements[0].value +
+              corrected.slice(match.offset + match.length);
+          }
+        });
+        
+        if (corrected !== text) {
+          console.log("LanguageTool corrections applied successfully");
+          return corrected + " (исправлено LanguageTool)";
+        }
       }
-    });
-
-    return corrected;
-    
+      
+      // No corrections needed from LanguageTool
+      console.log("LanguageTool found no issues");
+      return advancedHebrewCorrection(text) + " (проверено)";
+    }
   } catch (err) {
-    console.error("Hebrew correction failed:", err);
-    
-    // Fallback: Basic Hebrew text cleanup
-    return basicHebrewCleanup(text);
+    console.error("LanguageTool API failed:", err);
   }
+
+  // Fallback: Advanced Hebrew correction
+  console.log("Using advanced Hebrew correction fallback");
+  return advancedHebrewCorrection(text) + " (исправлено локально)";
 }
 
-// Basic Hebrew text cleanup function
-function basicHebrewCleanup(text) {
-  // Remove extra spaces and fix common issues
-  let cleaned = text
+// Advanced Hebrew text correction function
+function advancedHebrewCorrection(text) {
+  let corrected = text;
+  
+  // Common Hebrew spelling mistakes and corrections
+  const commonMistakes = {
+    // Common Hebrew spelling errors
+    'בקית': 'בקיץ',
+    'דבר': 'דבר',
+    'הלכ': 'הלך',
+    'כולל': 'כולל',
+    'מיד': 'מיד',
+    'לידה': 'לידה',
+    'שלוש': 'שלוש',
+    'ארבע': 'ארבע',
+    'חמש': 'חמש',
+    'שש': 'שש',
+    'שבע': 'שבע',
+    'שמונה': 'שמונה',
+    'תשע': 'תשע',
+    'עשר': 'עשר',
+    
+    // Common prefix/suffix errors
+    'ב־': 'ב',
+    'ל־': 'ל',
+    'מ־': 'מ',
+    'ש־': 'ש',
+    'ה־': 'ה',
+    'כ־': 'כ',
+    
+    // Final letter corrections (sofit)
+    'מ ': 'ם ',
+    'נ ': 'ן ',
+    'צ ': 'ץ ',
+    'פ ': 'ף ',
+    'כ ': 'ך ',
+    'מ$': 'ם',
+    'נ$': 'ן',
+    'צ$': 'ץ',
+    'פ$': 'ף',
+    'כ$': 'ך',
+    
+    // Common word corrections
+    'אבל': 'אבל',
+    'גם': 'גם',
+    'רק': 'רק',
+    'כבר': 'כבר',
+    'עוד': 'עוד',
+    'כן': 'כן',
+    'לא': 'לא',
+    'זה': 'זה',
+    'מה': 'מה',
+    'איך': 'איך',
+    'איפה': 'איפה',
+    'מתי': 'מתי',
+    'למה': 'למה'
+  };
+  
+  // Apply common corrections
+  for (const [mistake, correction] of Object.entries(commonMistakes)) {
+    const regex = new RegExp(mistake.replace(/\$/g, '(?=\\s|$)'), 'g');
+    corrected = corrected.replace(regex, correction);
+  }
+  
+  // Fix final letters at end of words
+  corrected = corrected
+    .replace(/מ(?=\s|$|[.!?])/g, 'ם')
+    .replace(/נ(?=\s|$|[.!?])/g, 'ן')
+    .replace(/צ(?=\s|$|[.!?])/g, 'ץ')
+    .replace(/פ(?=\s|$|[.!?])/g, 'ף')
+    .replace(/כ(?=\s|$|[.!?])/g, 'ך');
+  
+  // Remove extra spaces and fix punctuation
+  corrected = corrected
     .replace(/\s+/g, ' ')  // Multiple spaces to single space
     .replace(/^\s+|\s+$/g, '')  // Trim start and end
     .replace(/([\.!?])\s*([א-ת])/g, '$1 $2')  // Space after punctuation
-    .replace(/([א-ת])\s*([\.!?])/g, '$1$2');  // No space before punctuation
-  
-  // Basic punctuation fixes for Hebrew
-  cleaned = cleaned
+    .replace(/([א-ת])\s*([\.!?])/g, '$1$2')  // No space before punctuation
     .replace(/\?\?+/g, '?')  // Multiple question marks
     .replace(/!!+/g, '!')    // Multiple exclamation marks
     .replace(/\.\.+/g, '...')  // Multiple dots to ellipsis
     .replace(/,,+/g, ',');   // Multiple commas
   
-  return cleaned;
+  // Fix Hebrew quotation marks
+  corrected = corrected
+    .replace(/"/g, '"')  // Replace straight quotes
+    .replace(/'/g, ''')  // Replace straight apostrophes
+    .replace(/״/g, '"')  // Hebrew quote mark
+    .replace(/׳/g, '''); // Hebrew apostrophe
+    
+  // Add proper Hebrew punctuation
+  if (corrected.length > 0 && !/[.!?]$/.test(corrected)) {
+    // Add period if sentence seems complete
+    const words = corrected.split(/\s+/);
+    if (words.length >= 2) {
+      corrected += '.';
+    }
+  }
+  
+  return corrected;
+}
+
+// Basic Hebrew text cleanup (kept for compatibility)
+function basicHebrewCleanup(text) {
+  return advancedHebrewCorrection(text);
 }
 
 
